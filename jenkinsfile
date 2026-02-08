@@ -26,7 +26,45 @@ pipeline {
                 sh 'trivy image myregistry/maven-app:"$BUILD_NUMBER"'
             }
         }
-        
+        stage ('docker image tagging'){
+            steps{
+                echo 'tagging docker image'
+                sh 'docker tag myregistry/maven-app:"$BUILD_NUMBER" hammadansari/maven-app:"$BUILD_NUMBER"'
+            }
+        }
+        stage('Push docker image') {
+            steps {
+                echo 'pushing docker image to Docker Hub'
+                sh 'docker push hammadansari/maven-app:"$BUILD_NUMBER"'
+            }
+        }
+        stage('deploy to staging env') {
+            steps {
+
+		sh '''
+			docker stop maven-app || true
+			docker rm maven-app || true
+		'''
+                echo "deploying to staging env"
+		sh 'docker run -d --name maven-app -p 8090:8080 myregistry/maven-app:"$BUILD_NUMBER" '
+            }
+        }
+
+        stage('deploy to prod env') {
+            steps {
+                 timeout(time:1, unit:'MINUTES'){
+                 input message: 'Approve Production deployment?'
+                 }
+
+		sh '''
+			docker stop maven-app-prod || true
+			docker rm maven-app-prod || true
+		'''
+                echo "deploying to prod env"
+		sh 'docker run -d --name maven-app-prod -p 8091:8080 myregistry/maven-app:"$BUILD_NUMBER" '
+            }
+        }
+
 
     }
 }
